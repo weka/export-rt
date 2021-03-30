@@ -9,6 +9,7 @@ import argparse
 # system imports
 import logging.handlers
 import os
+import platform
 import sys
 import time
 import traceback
@@ -18,14 +19,13 @@ import prometheus_client
 
 import wekalib.signals as signals
 from collector import wekaCollector
-from lokilogs import LokiServer
 # local imports
 from wekalib.wekacluster import WekaCluster
 
-VERSION = "1.0.3"
+VERSION = "0.0.1"
 
 
-def prom_client(prom_port, configfile, cluster_hosts, auth, lokihost, lokiport):
+def prom_client(prom_port, configfile, cluster_hosts, auth):
     # set the root logger
     logger = logging.getLogger()
 
@@ -40,11 +40,6 @@ def prom_client(prom_port, configfile, cluster_hosts, auth, lokihost, lokiport):
     # create the wekaCollector object
     collector = wekaCollector(configfile, cluster_obj)
 
-    if lokihost is not None:
-        lokiserver = LokiServer(lokihost, lokiport)
-    else:
-        lokiserver = None
-
     #
     # Start up the server to expose the metrics.
     #
@@ -56,19 +51,6 @@ def prom_client(prom_port, configfile, cluster_hosts, auth, lokihost, lokiport):
 
     while True:
         time.sleep(30)  # sleep first, just in case we're started at the same time as Loki; give it time
-        if lokiserver is not None:
-            logger.info(f"getting events for cluster {cluster_obj.name}")
-            try:
-                events = cluster_obj.get_events()
-            except Exception as exc:
-                logger.critical(f"Error getting events: {exc} for cluster {cluster_obj.name}")
-                logger.critical(f"{traceback.format_exc()}")
-            else:
-                try:
-                    lokiserver.send_events(events, cluster_obj)
-                except Exception as exc:
-                    logger.critical(f"Error sending events: {exc} for cluster {cluster_obj.name}")
-                    logger.critical(f"{traceback.format_exc()}")
 
 
 if __name__ == '__main__':
@@ -76,15 +58,12 @@ if __name__ == '__main__':
     signals.signal_handling()
 
     parser = argparse.ArgumentParser(description="Prometheus Client for Weka clusters")
-    parser.add_argument("-c", "--configfile", dest='configfile', default="./export.yml",
-                        help="override ./export.yml as config file")
+    parser.add_argument("-c", "--configfile", dest='configfile', default="./export-rt.yml",
+                        help="override ./export-rt.yml as config file")
     parser.add_argument("-p", "--port", dest='port', default="8001", help="TCP port number to listen on")
-    parser.add_argument("--loki_host", dest='lokihost', default=None, help="hostname/ip for loki server")
-    parser.add_argument("--loki_port", dest='lokiport', default="3100", help="port for loki server")
+
     parser.add_argument('clusterspec', default="localhost", nargs='*',
                         help="Cluster specifications.  <host>,<host>,...:authfile")
-    # parser.add_argument("-a", "--autohost", dest='autohost', default=False, action="store_true",
-    #           help="Automatically load balance queries over backend hosts" )
     parser.add_argument("-v", "--verbosity", action="count", default=0, help="increase output verbosity")
     parser.add_argument("--version", dest="version", default=False, action="store_true", help="Display version number")
     args = parser.parse_args()
@@ -106,31 +85,31 @@ if __name__ == '__main__':
 
     # set the root logger
     logger = logging.getLogger()
-    # FORMAT = "%(process)s:%(filename)s:%(lineno)s:%(funcName)s():%(message)s"
     FORMAT = "%(process)s:%(filename)s:%(lineno)s:%(funcName)s():%(levelname)s:%(message)s"
-    # logging.basicConfig(format=FORMAT)
     logger.setLevel(loglevel)
 
     # create handler to log to syslog
-    syslog_handler = logging.handlers.SysLogHandler(address="/dev/log")
-    # syslog_handler.setLevel(loglevel)
-    syslog_handler.setFormatter(logging.Formatter(os.path.basename(sys.argv[0]) + ': %(levelname)s: %(message)s'))
+    print(f"setting syslog on {platform.platform()}")
+    if platform.platform()[:5] == "macOS":
+        syslogaddr = "/var/run/syslog"
+    else:
+        syslogaddr = "/dev/log"
+    syslog_handler = logging.handlers.SysLogHandler(syslogaddr)
+    syslog_handler.setFormatter(logging.Formatter(FORMAT))
 
     # create handler to log to stderr
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter(FORMAT))
-    # console_handler.setLevel(loglevel)
 
     # add handlers to root logger
-    logger.addHandler(syslog_handler)
+    if syslog_handler is not None:
+        logger.addHandler(syslog_handler)
     logger.addHandler(console_handler)
 
-    # configure logging in signals module
-    # sublog = logging.getLogger( "signals" )
-    # sublog.setLevel(loglevel)
+
 
     # configure logging in collector module
-    logging.getLogger("collector").setLevel(logging.INFO)
+    logging.getLogger("collector").setLevel(logging.DEBUG)
 
     # configure logging in wekalib module (default for all)
     logging.getLogger("wekalib").setLevel(logging.ERROR)
@@ -153,7 +132,7 @@ if __name__ == '__main__':
     # configure logging in urllib3 module
     logging.getLogger("urllib3").setLevel(logging.ERROR)
 
-    # schedule up a process for each cluster, put them on conescutive ports starting at 8001 (or specified port)
+    # schedule up a process for each cluster, put them on consecutive ports starting at 8001 (or specified port)
     subprocesses = {}
     port = int(args.port)
 
@@ -165,7 +144,7 @@ if __name__ == '__main__':
         else:
             cluster_auth = None
         p = Process(target=prom_client,
-                    args=(port, args.configfile, clusterspeclist[0], cluster_auth, args.lokihost, args.lokiport))
+                    args=(port, args.configfile, clusterspeclist[0], cluster_auth))
         subprocesses[clusterspeclist[0]] = p  # keep processes by clusterspec so easy to tell them apart
         port += 1
 

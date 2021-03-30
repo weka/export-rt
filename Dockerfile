@@ -13,7 +13,7 @@ RUN mkdir -p $BASEDIR
 WORKDIR $BASEDIR
 
 COPY export $BASEDIR
-COPY export.yml $BASEDIR
+COPY export-rt.yml $BASEDIR
 COPY collector.py $BASEDIR
 COPY lokilogs.py $BASEDIR
 
