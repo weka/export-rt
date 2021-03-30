@@ -60,7 +60,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Prometheus Client for Weka clusters")
     parser.add_argument("-c", "--configfile", dest='configfile', default="./export-rt.yml",
                         help="override ./export-rt.yml as config file")
-    parser.add_argument("-p", "--port", dest='port', default="8001", help="TCP port number to listen on")
+    parser.add_argument("-p", "--port", dest='port', default="8101", help="TCP port number to listen on")
 
     parser.add_argument('clusterspec', default="localhost", nargs='*',
                         help="Cluster specifications.  <host>,<host>,...:authfile")
@@ -132,7 +132,7 @@ if __name__ == '__main__':
     # configure logging in urllib3 module
     logging.getLogger("urllib3").setLevel(logging.ERROR)
 
-    # schedule up a process for each cluster, put them on consecutive ports starting at 8001 (or specified port)
+    # schedule up a process for each cluster, put them on consecutive ports starting at 8101 (or specified port)
     subprocesses = {}
     port = int(args.port)
 
