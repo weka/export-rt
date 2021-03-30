@@ -12,18 +12,16 @@ RUN mkdir -p $BASEDIR
 
 WORKDIR $BASEDIR
 
-COPY export $BASEDIR
-COPY export-rt.yml $BASEDIR
+COPY export-rt $BASEDIR
 COPY collector.py $BASEDIR
-COPY lokilogs.py $BASEDIR
 
 RUN addgroup -S -g $ID $USER &&\
     adduser -S -h $BASEDIR -u $ID -G $USER $USER && \
     chown -R $USER:$USER $BASEDIR
 
-RUN chmod +x $BASEDIR/export
+RUN chmod +x $BASEDIR/export-rt
 
-EXPOSE 8001
+EXPOSE 8101
 
 USER $USER
 ENTRYPOINT ["./export"]
