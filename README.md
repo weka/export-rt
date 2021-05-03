@@ -79,7 +79,7 @@ Configure prometheus to pull data from the Weka metrics exporter (see prometheus
 ```
 # Weka
 - job_name: 'weka'
-  scrape_interval: 60s
+  scrape_interval: 5s
   static_configs:
     - targets: ['localhost:8001']
     - targets: ['localhost:8002']
